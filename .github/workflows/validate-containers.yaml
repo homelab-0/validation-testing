@@ -80,7 +80,7 @@ jobs:
       # Deploy Docker Compose services
       - name: Deploy Docker Compose Services
         if: steps.check.outputs.tag_valid == 'true'
-        uses: hoverkraft-tech/compose-action@v2.0.1
+        uses: hoverkraft-tech/compose-action@v2.0.2
         id: docker_up
         with:
           compose-file: './docker-compose.yml'
@@ -163,7 +163,7 @@ jobs:
 
       - name: Stop Docker Compose Services
         if: steps.docker_up.outcome == 'success'
-        uses: hoverkraft-tech/compose-action@v2.0.1
+        uses: hoverkraft-tech/compose-action@v2.0.2
         with:
           compose-file: './docker-compose.yml'
           command: down
