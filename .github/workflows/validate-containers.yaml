@@ -1,0 +1,169 @@
+on:
+  pull_request:
+    paths:
+      - '**/docker-compose*.yml'  # Run workflow only if docker-compose files are modified or added
+
+jobs:
+  validate-docker-compose:
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: "${{ secrets.BOT_APP_ID1 }}"
+          private-key: "${{ secrets.BOT_APP_PRIVATE_KEY1 }}"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: "${{ steps.app-token.outputs.token }}"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'  # Use the latest LTS version
+
+      - name: Install Renovate CLI
+        run: |
+          npm install -g renovate
+
+      - name: Run Renovate in Dry Run Mode
+        id: renovate
+        env:
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
+        run: |
+          renovate --dry-run --log-level debug --include-path '**/docker-compose*.yml' --autodiscover=false ${{ github.repository }} > renovate_output.txt 2>&1 || true
+
+      - name: Check for Invalid Docker Tags
+        id: check
+        run: |
+          if grep -q "Failed to look up" renovate_output.txt; then
+            echo "tag_valid=false" >> $GITHUB_OUTPUT
+          else
+            echo "tag_valid=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add PR Comment for Invalid Tags
+        if: steps.check.outputs.tag_valid == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚫 **Invalid Docker image tag found in your `docker-compose` files.** Please check the tag and ensure it exists.'
+            })
+
+      - name: Fail if Invalid Tags
+        if: steps.check.outputs.tag_valid == 'false'
+        run: |
+          echo "Failing the workflow due to invalid Docker image tags."
+          exit 1
+
+      - name: Add PR Comment for Valid Tags
+        if: steps.check.outputs.tag_valid == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **All Docker image tags are valid.** Proceeding to the next steps.'
+            })
+
+      # Deploy Docker Compose services
+      - name: Deploy Docker Compose Services
+        if: steps.check.outputs.tag_valid == 'true'
+        uses: hoverkraft-tech/compose-action@v2.0.1
+        id: docker_up
+        with:
+          compose-file: './docker-compose.yml'
+        continue-on-error: true  # Allow the workflow to continue even if this step fails
+
+      - name: Check if Docker Compose Services Started
+        if: steps.docker_up.outcome == 'failure'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚫 **Docker Compose services failed to start.** Please check the configuration and logs.'
+            })
+
+      - name: Fail Workflow if Services Failed
+        if: steps.docker_up.outcome == 'failure'
+        run: |
+          echo "Failing the workflow because Docker Compose services failed to start."
+          exit 1
+
+      - name: Add PR Comment for Successful Start
+        if: steps.docker_up.outcome == 'success'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **Docker Compose services started successfully.** Proceeding to check logs.'
+            })
+
+      - name: Check Docker Logs for Errors
+        if: steps.docker_up.outcome == 'success'
+        id: check_logs
+        run: |
+          errors_found=0
+          # Get container IDs started by docker-compose
+          container_ids=$(docker-compose -f docker-compose*.yml ps -q)
+          for container_id in $container_ids; do
+            echo "Checking logs for container $container_id"
+            logs=$(docker logs "$container_id" 2>&1)
+            if echo "$logs" | grep -i "error"; then
+              errors_found=1
+              echo "Error found in container $container_id"
+            fi
+          done
+          echo "errors_found=$errors_found" >> $GITHUB_OUTPUT
+
+      - name: Add PR Comment for Errors Found
+        if: steps.check_logs.outputs.errors_found == '1'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚫 **Errors were found in the container logs.** Please check the logs for details.'
+            })
+
+      - name: Add PR Comment for No Errors
+        if: steps.check_logs.outputs.errors_found == '0'
+        uses: actions/github-script@v6
+        with:
+          github-token: "${{ steps.app-token.outputs.token }}"
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ **No errors detected in container logs.**'
+            })
+
+      - name: Stop Docker Compose Services
+        if: steps.docker_up.outcome == 'success'
+        uses: hoverkraft-tech/compose-action@v2.0.1
+        with:
+          compose-file: './docker-compose.yml'
+          command: down
