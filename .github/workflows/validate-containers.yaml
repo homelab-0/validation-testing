@@ -1,7 +1,8 @@
 on:
   pull_request:
     paths:
-      - '**/docker-compose*.yml'  # Run workflow only if docker-compose files are modified or added
+      - '**/docker-compose.yml' 
+      - '**/docker-compose.yaml' # Run workflow only if docker-compose files are modified or added
 
 jobs:
   validate-docker-compose:
