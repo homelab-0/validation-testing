@@ -48,7 +48,7 @@ jobs:
 
       - name: Add PR Comment for Invalid Tags
         if: steps.check.outputs.tag_valid == 'false'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
@@ -67,7 +67,7 @@ jobs:
 
       - name: Add PR Comment for Valid Tags
         if: steps.check.outputs.tag_valid == 'true'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
@@ -89,7 +89,7 @@ jobs:
 
       - name: Check if Docker Compose Services Started
         if: steps.docker_up.outcome == 'failure'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
@@ -108,7 +108,7 @@ jobs:
 
       - name: Add PR Comment for Successful Start
         if: steps.docker_up.outcome == 'success'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
@@ -138,7 +138,7 @@ jobs:
 
       - name: Add PR Comment for Errors Found
         if: steps.check_logs.outputs.errors_found == '1'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
@@ -151,7 +151,7 @@ jobs:
 
       - name: Add PR Comment for No Errors
         if: steps.check_logs.outputs.errors_found == '0'
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           github-token: "${{ steps.app-token.outputs.token }}"
           script: |
