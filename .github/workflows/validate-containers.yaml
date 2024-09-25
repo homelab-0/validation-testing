@@ -1,8 +1,7 @@
 on:
   pull_request:
-    paths:
-      - '*/docker-compose.yml' 
-      - '*/docker-compose.yaml' # Run workflow only if docker-compose files are modified or added
+    paths: 
+      - '**/docker-compose.yaml' # Run workflow only if docker-compose files are modified or added
 
 jobs:
   validate-docker-compose:
@@ -75,7 +74,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ **All Docker image tags are valid.** Proceeding to the next steps.'
+              body: '✅ **All Docker image tags are valid.**'
             })
 
       # Deploy Docker Compose services
@@ -84,7 +83,7 @@ jobs:
         uses: hoverkraft-tech/compose-action@v2.0.2
         id: docker_up
         with:
-          compose-file: './docker-compose.yml'
+          compose-file: '**/docker-compose.yaml'
         continue-on-error: true  # Allow the workflow to continue even if this step fails
 
       - name: Check if Docker Compose Services Started
@@ -116,7 +115,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ **Docker Compose services started successfully.** Proceeding to check logs.'
+              body: '✅ **Docker Compose services started successfully.**'
             })
 
       - name: Check Docker Logs for Errors
@@ -166,5 +165,5 @@ jobs:
         if: steps.docker_up.outcome == 'success'
         uses: hoverkraft-tech/compose-action@v2.0.2
         with:
-          compose-file: './docker-compose.yml'
+          compose-file: '**/docker-compose.yml'
           command: down
